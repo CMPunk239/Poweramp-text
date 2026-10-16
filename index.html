@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ru" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Powramp Lyrics & Karaoke Plugin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .lyrics-container::-webkit-scrollbar { width: 6px; }
+        .lyrics-container::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+        .lyric-line { transition: all 0.3s ease; }
+        .lyric-line.active { transform: scale(1.05); color: #38bdf8; text-shadow: 0 0 15px rgba(56, 189, 248, 0.4); }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 h-full flex flex-col md:flex-row overflow-hidden">
+
+    <div class="w-full md:w-96 bg-slate-900 border-r border-slate-800 p-6 flex flex-col justify-between overflow-y-auto">
+        <div>
+            <div class="flex items-center space-x-3 mb-6">
+                <div class="w-10 h-10 bg-gradient-to-tr from-cyan-500 to-indigo-600 rounded-xl flex items-center justify-center font-bold text-xl shadow-lg">P</div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight">Powramp Plugin</h1>
+                    <span class="text-xs text-cyan-400 font-medium">Genius Lyrics & Karaoke v1.0</span>
+                </div>
+            </div>
+
+            <!-- Search Section -->
+            <div class="space-y-4 mb-6">
+                <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Поиск трека</h2>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Исполнитель</label>
+                    <input type="text" id="artistInput" value="Miyagi & Эндшпиль" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Название трека</label>
+                    <input type="text" id="trackInput" value="Minor" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500">
+                </div>
+                <button onclick="searchLyrics()" class="w-full bg-cyan-600 hover:bg-cyan-500 font-semibold py-2.5 rounded-lg text-sm transition shadow-lg shadow-cyan-900/30">
+                    Найти текст (Genius API)
+                </button>
+            </div>
+
+            <!-- Integration Guide / Info Toggle -->
+            <div class="bg-slate-800/50 border border-slate-700/60 rounded-xl p-4 text-xs space-y-2">
+                <p class="font-semibold text-cyan-400">💡 Как это работает в Powramp:</p>
+                <p class="text-slate-300">Плагин слушает событие изменения трека в плеере Powramp через WebExtension / IPC и запрашивает синк-текст.</p>
+            </div>
+        </div>
+
+        <!-- Player Controls Simulation -->
+        <div class="mt-6 pt-4 border-t border-slate-800 space-y-3">
+            <div class="flex items-center justify-between text-xs text-slate-400">
+                <span id="currentTimeDisplay">00:00</span>
+                <span id="durationDisplay">02:30</span>
+            </div>
+            <input type="range" id="progressBar" value="0" max="150" class="w-full accent-cyan-500 cursor-pointer" oninput="seekTrack(this.value)">
+            <div class="flex items-center justify-center space-x-4">
+                <button onclick="togglePlay()" id="playBtn" class="bg-slate-800 hover:bg-slate-700 w-10 h-10 rounded-full flex items-center justify-center font-bold text-cyan-400 transition">▶</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex-1 flex flex-col h-full bg-gradient-to-b from-slate-900 to-slate-950 p-6 md:p-12 relative overflow-hidden">
+        <!-- Top Track Header -->
+        <div class="flex items-center justify-between border-b border-slate-800/80 pb-4 mb-6">
+            <div>
+                <h2 id="currentTrackTitle" class="text-2xl font-bold tracking-tight">Minor</h2>
+                <p id="currentArtistName" class="text-sm text-slate-400">Miyagi & Эндшпиль</p>
+            </div>
+            <div class="flex items-center space-x-2 bg-slate-800 px-3 py-1.5 rounded-full border border-slate-700 text-xs">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span class="font-medium text-emerald-400">Караоке Синхронизация Активна</span>
+            </div>
+        </div>
+
+        <!-- Lyrics / Karaoke Scroll Area -->
+        <div id="lyricsContainer" class="lyrics-container flex-1 overflow-y-auto space-y-8 pr-4 text-center py-20">
+            <!-- Dynamically injected lyrics lines will go here -->
+        </div>
+
+        <!-- Documentation & Setup Guide Section inside UI -->
+        <div class="mt-4 pt-4 border-t border-slate-800 text-xs text-slate-400 flex justify-between items-center">
+            <span>Документация и гайд сборки плагина встроены в проект.</span>
+            <button onclick="openGuideModal()" class="text-cyan-400 hover:underline font-medium">Читать инструкцию разработчика</button>
+        </div>
+    </div>
+
+    <div id="guideModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+            <div class="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-800/40">
+                <h3 class="font-bold text-base text-cyan-400">Руководство: Как создать плагин для Powramp и подключить Genius API</h3>
+                <button onclick="closeGuideModal()" class="text-slate-400 hover:text-white font-bold text-lg">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-300 leading-relaxed">
+                <h4 class="font-bold text-white text-base">1. Архитектура плагина для Powramp</h4>
+                <p>Powramp поддерживает расширения или может управляться через локальный сервер / плагины. Чтобы внедрить поиск текстов:</p>
+                <ul class="list-disc pl-5 space-y-1 text-slate-400">
+                    <li>Плагин перехватывает метаданные текущего трека (название, артист).</li>
+                    <li>Делает запрос к бэкенду или напрямую в Genius API.</li>
+                    <li>Парсит HTML-страницу трека Genius или использует неофициальные обертки API для получения текста.</li>
+                </ul>
+
+                <h4 class="font-bold text-white text-base mt-4">2. Получение данных с Genius API</h4>
+                <p>Для работы с Genius нужно зарегистрироваться на <a href="https://genius.com/api-clients" target="_blank" class="text-cyan-400 underline">Genius API Developers</a> и получить токен доступа (Client Access Token).</p>
+                
+                <pre class="bg-slate-950 p-3 rounded-lg text-xs font-mono text-cyan-300 overflow-x-auto">
+// Пример запроса к Genius API поиска песни
+async function searchGenius(artist, track) {
+    const token = 'ВАШ_GENIUS_ACCESS_TOKEN';
+    const query = encodeURIComponent(`${artist} ${track}`);
+    const res = await fetch(`https://api.genius.com/search?q=${query}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    return data.response.hits[0]?.result?.path; // Путь к странице текста
+}
+                </pre>
+
+                <h4 class="font-bold text-white text-base mt-4">3. Реализация Караоке (Синхронизация по времени)</h4>
+                <p>Для караоке-подсветки используется LRC-формат (время в миллисекундах или секундах). Плагин сопоставляет текущую позицию аудиоплеера Powramp с таймкодами строк текста и добавляет класс активной строке.</p>
+            </div>
+            <div class="p-4 border-t border-slate-800 bg-slate-800/40 text-right">
+                <button onclick="closeGuideModal()" class="bg-cyan-600 hover:bg-cyan-500 px-4 py-2 rounded-lg text-xs font-semibold text-white transition">Понятно</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Демо-данные с таймкодами для караоке (формат LRC)
+        const mockKaraokeData = [
+            { time: 0, text: "(Интро)" },
+            { time: 5, text: "Младший брат на стиле, суета в квартале" },
+            { time: 9, text: "Мы летим туда, где нас еще не ждали" },
+            { time: 14, text: "Льется дым рекой, ночи до рассвета" },
+            { time: 19, text: "Вспоминай меня, когда наступит лето." },
+            { time: 24, text: "Minor... Опять минор в колонках" },
+            { time: 29, text: "И разбиты стекла на осколки." },
+            { time: 35, text: "Жизнь река течет куда-то мимо" },
+            { time: 40, text: "Но мы идем вперед неутомимо!" },
+            { time: 50, text: "(Проигрыш)" }
+        ];
+
+        let isPlaying = false;
+        let currentTime = 0;
+        let duration = 60; // общая длительность в секундах для демо
+        let timerInterval = null;
+
+        const progressBar = document.getElementById('progressBar');
+        const currentTimeDisplay = document.getElementById('currentTimeDisplay');
+        const durationDisplay = document.getElementById('durationDisplay');
+        const lyricsContainer = document.getElementById('lyricsContainer');
+        const playBtn = document.getElementById('playBtn');
+
+        // Рендер строк караоке в DOM
+        function renderLyrics() {
+            lyricsContainer.innerHTML = '';
+            mockKaraokeData.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = `lyric-line text-lg md:text-2xl font-medium text-slate-400 py-3 transition-all duration-300 cursor-pointer`;
+                div.id = `line-${index}`;
+                div.innerText = item.text;
+                div.onclick = () => { seekToTime(item.time); };
+                lyricsContainer.appendChild(div);
+            });
+        }
+
+        // Обновление состояния караоке при воспроизведении
+        function updateKaraoke() {
+            if (!isPlaying) return;
+            currentTime += 1;
+            if (currentTime > duration) {
+                currentTime = 0;
+                isPlaying = false;
+                playBtn.innerText = "▶";
+                clearInterval(timerInterval);
+            }
+            
+            progressBar.value = currentTime;
+            currentTimeDisplay.innerText = formatTime(currentTime);
+            highlightActiveLine();
+        }
+
+        function highlightActiveLine() {
+            // Ищем активную строчку по таймингу
+            let activeIndex = 0;
+            for (let i = 0; i < mockKaraokeData.length; i++) {
+                if (currentTime >= mockKaraokeData[i].time) {
+                    activeIndex = i;
+                } else {
+                    break;
+                }
+            }
+
+            // Подсвечиваем DOM элементы
+            mockKaraokeData.forEach((_, i) => {
+                const el = document.getElementById(`line-${i}`);
+                if (!el) return;
+                if (i === activeIndex) {
+                    el.classList.add('active');
+                    // Автоскролл к активной строке
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else {
+                    el.classList.remove('active');
+                }
+            });
+        }
+
+        function togglePlay() {
+            isPlaying = !isPlaying;
+            playBtn.innerText = isPlaying ? "⏸" : "▶";
+            if (isPlaying) {
+                timerInterval = setInterval(updateKaraoke, 1000);
+            } else {
+                clearInterval(timerInterval);
+            }
+        }
+
+        function seekTrack(val) {
+            currentTime = parseInt(val);
+            currentTimeDisplay.innerText = formatTime(currentTime);
+            highlightActiveLine();
+        }
+
+        function seekToTime(time) {
+            currentTime = time;
+            progressBar.value = currentTime;
+            currentTimeDisplay.innerText = formatTime(currentTime);
+            highlightActiveLine();
+        }
+
+        function formatTime(secs) {
+            const m = Math.floor(secs / 60);
+            const s = secs % 60;
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function searchLyrics() {
+            const artist = document.getElementById('artistInput').value;
+            const track = document.getElementById('trackInput').value;
+            
+            document.getElementById('currentArtistName').innerText = artist;
+            document.getElementById('currentTrackTitle').innerText = track;
+
+            // Имитация запроса к Genius API
+            alert(`Плагин отправил запрос к Genius API для трека: ${artist} - ${track}`);
+            currentTime = 0;
+            renderLyrics();
+            highlightActiveLine();
+        }
+
+        function openGuideModal() {
+            document.getElementById('guideModal').classList.remove('hidden');
+        }
+
+        function closeGuideModal() {
+            document.getElementById('guideModal').classList.add('hidden');
+        }
+
+        // Инициализация при загрузке
+        window.onload = function() {
+            durationDisplay.innerText = formatTime(duration);
+            progressBar.max = duration;
+            renderLyrics();
+            highlightActiveLine();
+        };
+    </script>
+</body>
+</html>
